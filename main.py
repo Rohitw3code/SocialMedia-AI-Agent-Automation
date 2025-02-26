@@ -3,6 +3,18 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain.chains.conversation.memory import ConversationSummaryMemory
 import json
+from functools import wraps
+
+
+def HumanInvolve(func):
+    @wraps(func)
+    def wrapper(*args,**kwargs):
+        if input("Approve y/n: ") == 'y':
+            res  = func(*args,**kwargs)
+            return res
+        return f"{func.__name__} is cancelled"
+    return wrapper
+
 
 @tool
 def prepare_email(context: str):
@@ -10,6 +22,7 @@ def prepare_email(context: str):
     return f"Generated email content for: {context}"
 
 @tool
+@HumanInvolve
 def email_service(email:str,email_content:str):
     """
     accept a user email , this tool is used to send email to any given mail address
