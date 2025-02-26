@@ -9,12 +9,21 @@ def prepare_email(context: str):
     print(f"📧 Email prepared for: {context}")
     return f"Generated email content for: {context}"
 
+@tool
+def email_service(email:str):
+    """
+    accept a user email , this tool is used to send email to any given mail address
+    Args:
+        email: the email address    
+    """
+    print("Email sent on : ",email)
+
 
 # Initialize model and enforce tool use
 llm = ChatOpenAI(model="gpt-4-turbo", temperature=0, max_tokens=1000)
 
 # Bind tools to model and force tool usage
-llm_with_tools = llm.bind_tools([prepare_email])
+llm_with_tools = llm.bind_tools([prepare_email,email_service])
 
 # System message that *forces* tool usage
 system_message = SystemMessage(
@@ -22,6 +31,8 @@ system_message = SystemMessage(
 )
 
 query = """write an email for a data scientist position at Accenture company based on my resume"""
+
+query = """send a email to rohit@gmail.com"""
 
 messages = [system_message, HumanMessage(content=query)]
 response = llm_with_tools.invoke(messages, tool_choice="auto")  # Ensures tools are chosen
