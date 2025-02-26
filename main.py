@@ -1,22 +1,27 @@
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
+from langchain.chains.conversation.memory import ConversationSummaryMemory
 import json
 
 @tool
 def prepare_email(context: str):
     """Always call this tool when a user ask to write something may be Email , any Topic or content"""
-    print(f"📧 Email prepared for: {context}")
     return f"Generated email content for: {context}"
 
 @tool
-def email_service(email:str):
+def email_service(email:str,email_content:str):
     """
     accept a user email , this tool is used to send email to any given mail address
     Args:
         email: the email address    
+        email_content: get the email content from past context or from the given prompt only    
     """
+
+    print("email content : ",email_content)
     print("Email sent on : ",email)
+
+    return {"status":"successful","message":f"email successfully sent to {email}"}
 
 
 # Initialize model and enforce tool use
@@ -30,15 +35,36 @@ system_message = SystemMessage(
     content="You are an AI that must use the provided tools that best fit for the user query"
 )
 
-query = """write an email for a data scientist position at Accenture company based on my resume"""
+memory = ConversationSummaryMemory(llm=llm)
 
-query = """send a email to rohit@gmail.com"""
+FUNCTION_MAP = {
+    'prepare_email':prepare_email,
+    'email_service':email_service
+}
 
-messages = [system_message, HumanMessage(content=query)]
-response = llm_with_tools.invoke(messages, tool_choice="auto")  # Ensures tools are chosen
+tool_responses = []
 
-# Extract tool calls
-tool_calls = response.additional_kwargs.get("tool_calls", [])
+while True:
+    query = str(input("query : "))
 
-print("tool_calls : ",tool_calls)
+    history = memory.load_memory_variables({})['history']
+    messages = []
+    if history:
+        messages.append(SystemMessage(content=f"""You are an AI that must use the provided tools that best fit for the user query\n 
+                                      Past Conversation context: {history}"""))
+    messages.append(HumanMessage(content=query))
 
+
+    response = llm_with_tools.invoke(messages, tool_choice="auto") 
+    tool_calls = response.additional_kwargs.get("tool_calls", [])
+    for _function in tool_calls:
+        function = _function['function']
+        print("tool_calls : ",function)
+        func_name = function['name']
+        args = json.loads(function['arguments'])
+        result = FUNCTION_MAP[func_name].invoke(input=args)
+        print("result : ", result)
+        tool_responses.append(f"tool: {func_name}\nAI: {result}")
+
+    final_response = "\n".join(tool_responses) if tool_responses else response.content
+    memory.save_context({"input": query}, {"output": final_response})
